@@ -1,0 +1,13 @@
+{
+  "name": "music-boy-server",
+  "version": "1.0.0",
+  "description": "Local backend for Music Boy™ — YouTube via yt-dlp + lyrics from lrclib.net",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}
