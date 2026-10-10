@@ -58,7 +58,7 @@ async function getYtDlpInfo(url) {
   const args = [
     '--no-playlist',
     '--dump-json',
-    '--extractor-args', 'youtube:player_client=android'
+    '--extractor-args', 'youtube:player_client=mweb'
   ];
   if (fs.existsSync(cookiesPath)) {
     args.push('--cookies', cookiesPath);
