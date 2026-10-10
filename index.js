@@ -199,31 +199,58 @@ app.get('/lyrics', async (req, res) => {
   const { artist, title } = req.query;
   if (!title) return res.status(400).json({ error: 'title is required' });
 
-  try {
+  const tryLrcLib = async () => {
     const params = new URLSearchParams({ track_name: title });
     if (artist && artist !== 'Unknown') params.set('artist_name', artist);
 
-    // Always use search — it returns multiple results so we can pick the best
-    const searchRes = await fetch(
-      `https://lrclib.net/api/search?${params.toString()}`,
-      { headers: { 'Lrclib-Client': 'MusicBoy/1.0 (local)' } }
-    );
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500));
+      try {
+        const searchRes = await fetch(
+          `https://lrclib.net/api/search?${params.toString()}`,
+          { headers: { 'Lrclib-Client': 'MusicBoy/1.0 (render)' } }
+        );
+        if (searchRes.status >= 500) continue; // retry on 5xx
+        if (!searchRes.ok) return null;
 
-    if (!searchRes.ok) return res.json({ synced: [], plain: null, hasSync: false });
+        const results = await searchRes.json();
+        if (!results || results.length === 0) return null;
 
-    const results = await searchRes.json();
-    if (!results || results.length === 0) {
+        // Prefer results with synced lyrics, then plain lyrics
+        const valid = results.filter(r =>
+          r.plainLyrics && r.plainLyrics !== 'probe'
+        );
+        const withSync = valid.filter(r =>
+          r.syncedLyrics && r.syncedLyrics !== '[00:00.00]probe'
+        );
+        return withSync[0] ?? valid[0] ?? null;
+      } catch (err) {
+        // retry on network error
+      }
+    }
+    return null;
+  };
+
+  const tryOvh = async () => {
+    if (!artist || artist === 'Unknown') return null;
+    try {
+      const r = await fetch(
+        `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`
+      );
+      if (!r.ok) return null;
+      const d = await r.json();
+      return d && d.lyrics ? { plainLyrics: d.lyrics, syncedLyrics: null } : null;
+    } catch {
+      return null;
+    }
+  };
+
+  try {
+    const best = await tryLrcLib() || await tryOvh();
+
+    if (!best) {
       return res.json({ synced: [], plain: null, hasSync: false });
     }
-
-    // Filter out "probe" placeholder results, prefer those with syncedLyrics
-    const valid = results.filter(r =>
-      r.plainLyrics && r.plainLyrics !== 'probe' &&
-      r.syncedLyrics && r.syncedLyrics !== '[00:00.00]probe'
-    );
-
-    const withSync = valid.filter(r => r.syncedLyrics);
-    const best = withSync.length > 0 ? withSync[0] : (valid[0] ?? results[0]);
 
     return res.json(parseLyricsResponse(best));
   } catch (err) {
