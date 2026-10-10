@@ -52,12 +52,20 @@ function parseYouTubeTitle(rawTitle) {
 }
 
 async function getYtDlpInfo(url) {
-  const { stdout } = await execFileAsync(YT_DLP, [
+  const fs = require('fs');
+  const path = require('path');
+  const cookiesPath = path.join(__dirname, 'cookies.txt');
+  const args = [
     '--no-playlist',
     '--dump-json',
-    '--extractor-args', 'youtube:player_client=tv_embedded',
-    url,
-  ], { timeout: 30000 });
+    '--extractor-args', 'youtube:player_client=android'
+  ];
+  if (fs.existsSync(cookiesPath)) {
+    args.push('--cookies', cookiesPath);
+  }
+  args.push(url);
+
+  const { stdout } = await execFileAsync(YT_DLP, args, { timeout: 30000 });
   return JSON.parse(stdout);
 }
 
